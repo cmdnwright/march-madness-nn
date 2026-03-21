@@ -1,0 +1,23 @@
+# Data
+data/raw/
+data/processed/
+data/splits/
+
+# Models
+models/
+
+# Predictions
+predictions/
+
+# Environment
+.env
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

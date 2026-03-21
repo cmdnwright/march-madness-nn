@@ -1,0 +1,35 @@
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  splits_dir: data/splits
+  train_seasons: [2010, 2021]
+  val_season: 2022
+  test_season: 2023
+
+features:
+  columns:
+    - seed_diff
+    - off_eff_diff
+    - def_eff_diff
+    - win_pct_diff
+    - pace_diff
+    - sos_diff
+  normalize: true
+
+model:
+  input_dim: 6
+  hidden_layers: [64, 32]
+  dropout: 0.3
+  activation: relu
+
+training:
+  epochs: 100
+  batch_size: 32
+  learning_rate: 0.001
+  optimizer: adam
+  early_stopping_patience: 10
+  random_seed: 42
+
+logging:
+  experiment_name: baseline
+  checkpoint_every_n_epochs: 10
