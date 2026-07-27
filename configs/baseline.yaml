@@ -2,30 +2,45 @@ data:
   raw_dir: data/raw
   processed_dir: data/processed
   splits_dir: data/splits
-  train_seasons: [2010, 2021]
-  val_season: 2022
-  test_season: 2023
+  train_seasons: [2003, 2023]
+  val_season: 2024
+  test_season: 2025
 
 features:
   columns:
-    - seed_diff
-    - off_eff_diff
-    - def_eff_diff
-    - win_pct_diff
-    - pace_diff
-    - sos_diff
+    - "points_scored_diff"
+    - "points_allowed_diff"
+    - "shots_made_diff" 
+    - "shots_attempted_diff" 
+    - "threes_made_diff"
+    - "threes_attempted_diff" 
+    - "free_throws_made_diff" 
+    - "free_throws_attempted_diff"
+    - "offensive_rebounds_diff" 
+    - "defensive_rebounds_diff" 
+    - "assists_diff"
+    - "turnovers_diff" 
+    - "steals_diff" 
+    - "blocks_diff" 
+    - "fouls_diff"
+    - "win_pct_diff"
+    - "fg_pct_diff"
+    - "three_pct_diff"
+    - "free_throw_pct_diff"
+    - "seed_diff"
   normalize: true
 
 model:
-  input_dim: 6
+  input_dim: 20
   hidden_layers: [64, 32]
   dropout: 0.3
   activation: relu
 
 training:
   epochs: 100
-  batch_size: 32
+  batch_size: 128
   learning_rate: 0.001
+  weight_decay: 1.0e-4
   optimizer: adam
   early_stopping_patience: 10
   random_seed: 42
