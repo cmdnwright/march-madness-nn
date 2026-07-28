@@ -4,7 +4,7 @@ from src.data.ingest import load_raw_data
 from src.utils.config import load_config
 
 if __name__ == '__main__':
-    config = load_config()
+    config = load_config('configs/baseline.yaml')
 
     data = load_raw_data(config['data']['raw_dir'])
     raw_season_results = data['season_results'].copy()

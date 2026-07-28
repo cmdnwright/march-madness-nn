@@ -9,13 +9,10 @@ class MatchupClassifier(nn.Module):
         dropout = config['model']['dropout']
 
         self.network = nn.Sequential(
-            nn.Linear(input_dim, hidden_dims[0]),
+            nn.Linear(input_dim, hidden_dims),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dims[0], hidden_dims[1]),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dims[1], 1)
+            nn.Linear(hidden_dims, 1)
         )
 
     def forward(self, x):

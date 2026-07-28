@@ -1,4 +1,5 @@
 import pandas as pd
+from src.data.colley import compute_colley_ratings
 
 def build_team_stats(config, regular_season):
     wins_df = regular_season[['Season', 'WTeamID', 'WScore', 'LScore', 'WFGM', 'WFGA', 'WFGM3', 'WFGA3', 'WFTM', 'WFTA', 'WOR', 'WDR', 'WAst', 'WTO', 'WStl', 'WBlk', 'WPF']].copy()
@@ -37,4 +38,12 @@ def build_team_stats(config, regular_season):
     team_stats['three_pct'] = team_stats['threes_made'] / team_stats['threes_attempted']
     team_stats['free_throw_pct'] = team_stats['free_throws_made'] / team_stats['free_throws_attempted']
 
-    team_stats.to_csv(f'{config["data"]["processed_dir"]}/team_stats.csv', index=False)
+    # Colley ratings come from the raw game log (win/loss + opponent identity),
+    # a different computation from the box-score aggregation above, so it's
+    # kept in its own module and merged in here.
+    if 'colley_diff' in config['features']['columns']:
+        colley_ratings = compute_colley_ratings(regular_season)
+        team_stats = pd.merge(team_stats, colley_ratings, on=['season', 'team_id'], how='left')
+
+    experiment_name = config['data']['experiment_name']
+    team_stats.to_csv(f'{config["data"]["processed_dir"]}/team_stats_{experiment_name}.csv', index=False)

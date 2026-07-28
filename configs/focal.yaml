@@ -1,5 +1,5 @@
 data:
-  experiment_name: baseline
+  experiment_name: colley
   raw_dir: data/raw
   processed_dir: data/processed
   splits_dir: data/splits
@@ -11,32 +11,33 @@ features:
   columns:
     - "points_scored_diff"
     - "points_allowed_diff"
-    - "shots_made_diff" 
-    - "shots_attempted_diff" 
+    - "shots_made_diff"
+    - "shots_attempted_diff"
     - "threes_made_diff"
-    - "threes_attempted_diff" 
-    - "free_throws_made_diff" 
+    - "threes_attempted_diff"
+    - "free_throws_made_diff"
     - "free_throws_attempted_diff"
-    - "offensive_rebounds_diff" 
-    - "defensive_rebounds_diff" 
+    - "offensive_rebounds_diff"
+    - "defensive_rebounds_diff"
     - "assists_diff"
-    - "turnovers_diff" 
-    - "steals_diff" 
-    - "blocks_diff" 
+    - "turnovers_diff"
+    - "steals_diff"
+    - "blocks_diff"
     - "fouls_diff"
     - "win_pct_diff"
     - "fg_pct_diff"
     - "three_pct_diff"
     - "free_throw_pct_diff"
     - "seed_diff"
+    - "colley_diff"
   normalize: true
 
 model:
-  input_dim: 20
+  experiment_name: focal
+  input_dim: 21
   hidden_layers: 64
   dropout: 0.3
   activation: relu
-  experiment_name: baseline
 
 training:
   epochs: 100
@@ -44,6 +45,6 @@ training:
   learning_rate: 0.001
   weight_decay: 1.0e-4
   optimizer: adam
-  random_seed: 42
   checkpoint_every_n_epochs: 10
-  focal_gamma: 0.0
+  random_seed: 42
+  focal_gamma: 1.0

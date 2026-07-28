@@ -4,10 +4,11 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
+from src.training.losses import FocalLoss
 
 def train_model(config, model, X_train, y_train, X_val, y_val):
     train_config = config['training']
-    log_config = config['logging']
+    model_config = config['model']
 
     seed = train_config['random_seed']
     torch.manual_seed(seed)
@@ -28,16 +29,16 @@ def train_model(config, model, X_train, y_train, X_val, y_val):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=train_config['learning_rate'], weight_decay=train_config['weight_decay'])
 
-    loss_fn = nn.BCEWithLogitsLoss()
+    loss_fn = FocalLoss(gamma=train_config['focal_gamma'])
 
-    ckpt_dir = Path('models/checkpoints') / log_config['experiment_name']
+    ckpt_dir = Path('models/checkpoints') / model_config['experiment_name']
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-    final_dir = Path('models/final') / log_config['experiment_name']
+    final_dir = Path('models/final') / model_config['experiment_name']
     final_dir.mkdir(parents=True, exist_ok=True)
     final_path = final_dir / 'final.pt'
 
     best_val_loss = float('inf')
-    checkpoint_every = log_config['checkpoint_every_n_epochs']
+    checkpoint_every = train_config['checkpoint_every_n_epochs']
 
     history = {'train_loss': [], 'val_loss': []}
 
