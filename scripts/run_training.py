@@ -4,7 +4,7 @@ from src.training.train import train_model
 import numpy as np
 
 def main():
-    config = load_config('configs/focal.yaml')
+    config = load_config('configs/season.yaml')
 
     experiment_name = config['data']['experiment_name']
     splits_dir = f'{config["data"]["splits_dir"]}/{experiment_name}'

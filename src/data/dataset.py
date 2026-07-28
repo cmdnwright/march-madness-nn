@@ -29,42 +29,45 @@ def load_data(config, tourney_results, seeds):
 
 def build_matchups(team_stats_df, seed_df, tournament_df, config):
     winner_matchups = pd.merge(
-        left=tournament_df, 
-        right=team_stats_df,
-        left_on=['Season', 'WTeamID'], 
-        right_on=['season', 'team_id'],
+        left=tournament_df, right=team_stats_df,
+        left_on=['Season', 'WTeamID'], right_on=['season', 'team_id'],
     )
     all_matchups = pd.merge(
-        left=winner_matchups, 
-        right=team_stats_df,
+        left=winner_matchups, right=team_stats_df,
         left_on=['Season', 'LTeamID'], right_on=['season', 'team_id'],
         suffixes=(None, '_l')
     )
     all_matchups = pd.merge(
-        left=all_matchups, 
-        right=seed_df,
-        left_on=['Season', 'WTeamID'], 
-        right_on=['Season', 'TeamID']
+        left=all_matchups, right=seed_df,
+        left_on=['Season', 'WTeamID'], right_on=['Season', 'TeamID']
     )
     all_matchups = pd.merge(
-        left=all_matchups, 
-        right=seed_df,
-        left_on=['Season', 'LTeamID'], 
-        right_on=['Season', 'TeamID'],
+        left=all_matchups, right=seed_df,
+        left_on=['Season', 'LTeamID'], right_on=['Season', 'TeamID'],
         suffixes=(None, '_l')
     )
 
     feature_cols = config['features']['columns']
-    for feature in feature_cols:
+
+    diff_features = [f for f in feature_cols if f != 'season_norm']
+
+    for feature in diff_features:
         df_column = feature.replace('_diff', '')
         all_matchups[feature] = all_matchups[df_column] - all_matchups[f'{df_column}_l']
+
+    if 'season_norm' in feature_cols:
+        min_season = config['data']['train_seasons'][0]
+        max_season = config['data']['test_season']
+        all_matchups['season_norm'] = (
+            (all_matchups['Season'] - min_season) / (max_season - min_season)
+        )
 
     cols = ['Season'] + feature_cols
     matchups = all_matchups[cols].copy()
     matchups['label'] = 1
 
     mirrored = matchups.copy()
-    mirrored[feature_cols] = -mirrored[feature_cols]
+    mirrored[diff_features] = -mirrored[diff_features]
     mirrored['label'] = 1 - mirrored['label']
 
     matchups = pd.concat([matchups, mirrored], ignore_index=True)
