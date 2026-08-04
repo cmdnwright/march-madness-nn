@@ -6,7 +6,24 @@ from pathlib import Path
 from tqdm import tqdm
 from src.training.losses import FocalLoss
 
-def train_model(config, model, X_train, y_train, X_val, y_val):
+def train_model(config: dict, model: nn.Module, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray) -> None:
+    '''trains the model, checkpointing periodically and saving the best val loss model as final
+
+    Parameters
+    ----------
+    config : dict
+        config of the experiment for training hyperparams and save locations
+    model : nn.Module
+        model to train
+    X_train : np.ndarray
+        train features shape (N, F)
+    y_train : np.ndarray
+        train labels shape (N,)
+    X_val : np.ndarray
+        val features shape (N, F)
+    y_val : np.ndarray
+        val labels shape (N,)
+    '''
     train_config = config['training']
     model_config = config['model']
 
@@ -42,7 +59,7 @@ def train_model(config, model, X_train, y_train, X_val, y_val):
 
     history = {'train_loss': [], 'val_loss': []}
 
-    pbar = tqdm(range(1, train_config['epochs'] + 1), desc='training model', position=0, leave=True, unit='epoch')
+    pbar = tqdm(range(1, train_config['epochs'] + 1), desc='training model', leave=False, unit='epoch')
     for epoch in pbar:
         model.train()
         running_train_loss = 0.0
@@ -57,6 +74,7 @@ def train_model(config, model, X_train, y_train, X_val, y_val):
 
         model.eval()
         running_val_loss = 0.0
+        # no_grad since validation
         with torch.no_grad():
             for xb, yb in tqdm(val_loader, desc=f'val epoch {epoch:02d}', leave=False, position=1, unit='batch'):
                 logits = model(xb)
@@ -68,6 +86,7 @@ def train_model(config, model, X_train, y_train, X_val, y_val):
         history['val_loss'].append(val_loss)
         pbar.set_postfix({'train_loss': train_loss, 'val_loss': val_loss})
 
+        # always keep the final checkpoint as the best val loss seen so far
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), final_path)
@@ -75,5 +94,3 @@ def train_model(config, model, X_train, y_train, X_val, y_val):
         if epoch % checkpoint_every == 0:
             periodic_path = ckpt_dir / f'epoch_{epoch}.pt'
             torch.save(model.state_dict(), periodic_path)
-
-    

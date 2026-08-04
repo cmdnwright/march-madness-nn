@@ -1,10 +1,23 @@
+'''
+orchestrates the individual model training process to experiment on individual models
+
+checkpoints based on config and saves bet val loss to models/checkpoints/model_experiment_name 
+and models/final/model_experiment_name
+
+change experiment by editing CONFIG_PATH constant to match config location relative to root
+
+run using python -m scripts.run_training.py
+'''
+
 from src.utils.config import load_config
 from src.model.model import MatchupClassifier
 from src.training.train import train_model
 import numpy as np
 
+CONFIG_PATH = 'configs/upset.yaml'
+
 def main():
-    config = load_config('configs/season.yaml')
+    config = load_config(CONFIG_PATH)
 
     experiment_name = config['data']['experiment_name']
     splits_dir = f'{config["data"]["splits_dir"]}/{experiment_name}'

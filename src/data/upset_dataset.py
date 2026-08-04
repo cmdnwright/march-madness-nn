@@ -1,42 +1,15 @@
-import pandas as pd
 import json
 import numpy as np
-import re
+import pandas as pd
 from pathlib import Path
-
-def parse_seed(seed_str: str) -> int:
-    '''regex parses the seeds from kaggle data into just a number
-    ie removes region or play in indicators
-
-    Parameters
-    ----------
-    seed_str : str
-        seed to parse
-
-    Returns
-    -------
-    int
-        integer number of the seed
-
-    Raises
-    ------
-    ValueError
-        the string passed in does not contain a valid integer seed
-    '''
-    match = re.search(r'\d+', seed_str)
-    if not match:
-        raise ValueError('no seed found')
-    return int(match.group())
+from src.data.dataset import parse_seed
 
 
-def load_data(config: dict, tourney_results: pd.DataFrame, seeds: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_upset_data(config: dict, tourney_results: pd.DataFrame, seeds: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''converts the raw tournament results, regular season team stats, and seeds into usable forms.
-    
-    tourney results and team stats are restricted to seasons of interest and seeds are parsed to be integer numbers
 
-    regular season results cleaned by preprocess.py
-    
-    returns all three for convenience
+    same loading logic as dataset.load_data, kept separate so the upset pipeline can evolve
+    independently (e.g. different season windows)
 
     Parameters
     ----------
@@ -50,12 +23,13 @@ def load_data(config: dict, tourney_results: pd.DataFrame, seeds: pd.DataFrame) 
     Returns
     -------
     tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
-        team stats df (aggregated stats per team per season), seeds df (team id to integer seed per season), 
+        team stats df (aggregated stats per team per season), seeds df (team id to integer seed per season),
         tourney results df (tournament games team ids winner and loser)
     '''
     experiment_name = config['data']['experiment_name']
     team_stats = pd.read_csv(f'{config["data"]["processed_dir"]}/team_stats_{experiment_name}.csv')
 
+    seeds = seeds.copy()
     seeds['seed'] = seeds['Seed'].apply(parse_seed)
     seeds = seeds[['Season', 'TeamID', 'seed']]
 
@@ -69,13 +43,13 @@ def load_data(config: dict, tourney_results: pd.DataFrame, seeds: pd.DataFrame) 
     return team_stats, seeds, tourney_results[['Season', 'WTeamID', 'LTeamID']]
 
 
-def build_matchups(team_stats_df: pd.DataFrame, seed_df: pd.DataFrame, tournament_df: pd.DataFrame, config: dict) -> pd.DataFrame:
-    '''builds match up data for all tournament games in all seasons. 
-    features for each game includes a difference betweent the first teams stats and the second teams stats
+def build_upset_matchups(team_stats_df: pd.DataFrame, seed_df: pd.DataFrame, tournament_df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    '''builds match up data for all tournament games in all seasons, oriented favorite-vs-underdog.
 
-    build off of winner matchups since tournament results are formated by WTeamID, labeled with 1 for win and 0 for loss
+    one row per game, oriented favorite-vs-underdog (by seed) rather than winner-vs-loser.
+    label=1 means the underdog won (an upset happened)
 
-    mirrored for balanced classes, and to avoid model learning first column = winner
+    games where both teams share a seed are dropped: there's no favorite to define an upset against
 
     Parameters
     ----------
@@ -112,35 +86,38 @@ def build_matchups(team_stats_df: pd.DataFrame, seed_df: pd.DataFrame, tournamen
         left_on=['Season', 'LTeamID'], right_on=['Season', 'TeamID'],
         suffixes=(None, '_l')
     )
+    # Drop games with no seed favorite (identical seed on both sides).
+    all_matchups = all_matchups[all_matchups['seed'] != all_matchups['seed_l']].copy()
+
+    winner_is_favorite = all_matchups['seed'] < all_matchups['seed_l']
 
     feature_cols = config['features']['columns']
-
     diff_features = [f for f in feature_cols if f != 'season_norm']
 
-    # create difference features
+    matchups = pd.DataFrame({'Season': all_matchups['Season']})
+
+    # create difference features, oriented favorite_stat - underdog_stat regardless of who won
     for feature in diff_features:
         df_column = feature.replace('_diff', '')
-        all_matchups[feature] = all_matchups[df_column] - all_matchups[f'{df_column}_l']
+        winner_stat = all_matchups[df_column]
+        loser_stat = all_matchups[f'{df_column}_l']
+        # favorite_stat - underdog_stat, regardless of who actually won
+        matchups[feature] = np.where(
+            winner_is_favorite, winner_stat - loser_stat, loser_stat - winner_stat
+        )
 
     # norm to prevent magnitude imbalance baising feature importance
     if 'season_norm' in feature_cols:
         min_season = config['data']['train_seasons'][0]
         max_season = config['data']['test_season']
-        all_matchups['season_norm'] = (
+        matchups['season_norm'] = (
             (all_matchups['Season'] - min_season) / (max_season - min_season)
         )
 
-    cols = ['Season'] + feature_cols
-    matchups = all_matchups[cols].copy()
-    matchups['label'] = 1
+    # underdog won <=> the favorite was NOT the winner
+    matchups['label'] = (~winner_is_favorite).astype(int).to_numpy()
 
-    # mirror for class balance
-    mirrored = matchups.copy()
-    mirrored[diff_features] = -mirrored[diff_features]
-    mirrored['label'] = 1 - mirrored['label']
-
-    matchups = pd.concat([matchups, mirrored], ignore_index=True)
-    return matchups
+    return matchups[['Season'] + feature_cols + ['label']]
 
 
 def split_by_season(matchups: pd.DataFrame, config: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -152,6 +129,7 @@ def split_by_season(matchups: pd.DataFrame, config: dict) -> tuple[np.ndarray, n
         dataframe of season, features, label
     config : dict
         config of the experiment for feature list, target seasons
+
     Returns
     -------
     tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
@@ -209,13 +187,13 @@ def normalize_splits(X_train: np.ndarray, X_val: np.ndarray, X_test: np.ndarray,
     return X_train_norm, X_val_norm, X_test_norm, norm_stats
 
 
-def build_splits(config: dict, team_stats: pd.DataFrame, seeds: pd.DataFrame, tourney_results: pd.DataFrame) -> None:
-    '''builds the full splits from curated data
+def build_upset_splits(config: dict, team_stats: pd.DataFrame, seeds: pd.DataFrame, tourney_results: pd.DataFrame) -> None:
+    '''builds the full upset splits from curated data
 
     Parameters
     ----------
     config : dict
-        config of the data experiment for save location 
+        config of the data experiment for save location
     team_stats_df : pd.DataFrame
             aggregated season stats per team per season
     seed_df : pd.DataFrame
@@ -223,7 +201,7 @@ def build_splits(config: dict, team_stats: pd.DataFrame, seeds: pd.DataFrame, to
     tournament_df : pd.DataFrame
         tournament results df formatted by season and WTeamID LTeamID
     '''
-    matchups = build_matchups(team_stats, seeds, tourney_results, config)
+    matchups = build_upset_matchups(team_stats, seeds, tourney_results, config)
 
     X_train, y_train, X_val, y_val, X_test, y_test = split_by_season(matchups, config)
     X_train, X_val, X_test, norm_stats = normalize_splits(X_train, X_val, X_test, config)
@@ -243,4 +221,7 @@ def build_splits(config: dict, team_stats: pd.DataFrame, seeds: pd.DataFrame, to
     with open(path, 'w') as f:
         json.dump(norm_stats, f, indent=2)
 
-    print(f'saved splits to {splits_dir}: train={X_train.shape}, val={X_val.shape}, test={X_test.shape}')
+    upset_rate_train = y_train.mean() if len(y_train) else float('nan')
+    print(f'Saved upset splits to {splits_dir}: '
+          f'train={X_train.shape} (upset rate {upset_rate_train:.3f}), '
+          f'val={X_val.shape}, test={X_test.shape}')
