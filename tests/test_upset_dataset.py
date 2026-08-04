@@ -3,24 +3,24 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.data.dataset import (
-    parse_seed,
-    load_data,
-    build_matchups,
+from src.data.dataset import parse_seed
+from src.data.upset_dataset import (
+    load_upset_data,
+    build_upset_matchups,
     split_by_season,
     normalize_splits,
-    build_splits,
+    build_upset_splits,
 )
 
 @pytest.fixture
 def config() -> dict:
     '''
-    provides a minimal configuration dict 
-    for testing data splits and feature normalization.
+    provides a minimal configuration dict
+    for testing upset data splits and feature normalization.
     '''
     return {
         'data': {
-            'experiment_name': 'test_experiment',
+            'experiment_name': 'test_upset_experiment',
             'train_seasons': [2010, 2011],
             'val_season': 2012,
             'test_season': 2013,
@@ -37,9 +37,8 @@ def config() -> dict:
 @pytest.fixture
 def team_stats_df() -> pd.DataFrame:
     '''
-    provides a mock team stats dataframe 
-    for seasons 2010-2013 matching expected 
-    preprocessed output.
+    provides a mock team stats dataframe for seasons 2010-2013.
+    team 1 is the stronger team (higher win_pct/pts), team 2 the weaker one.
     '''
     rows = []
     for season in [2010, 2011, 2012, 2013]:
@@ -51,8 +50,8 @@ def team_stats_df() -> pd.DataFrame:
 @pytest.fixture
 def seeds_df() -> pd.DataFrame:
     '''
-    provides a mock tournament seeds dataframe 
-    containing play-in suffixes in kaggle format.
+    provides a mock tournament seeds dataframe where team 1 is always the
+    #1 seed (favorite) and team 2 is always the #16 seed (underdog).
     '''
     rows = []
     for season in [2010, 2011, 2012, 2013]:
@@ -64,56 +63,36 @@ def seeds_df() -> pd.DataFrame:
 @pytest.fixture
 def tourney_results_df() -> pd.DataFrame:
     '''
-    provides a mock tournament results dataframe 
-    for seasons 2009-2014 where team 1 beats team 2.
+    provides a mock tournament results dataframe for seasons 2009-2014
+    where the favorite (team 1) always wins -- no upsets.
     '''
     rows = []
     for season in range(2009, 2015):
         rows.append({'Season': season, 'WTeamID': 1, 'LTeamID': 2})
     return pd.DataFrame(rows)
 
-class TestParseSeed:
-    def test_simple_seed(self) -> None:
-        '''
-        tests that a standard region-seed string 
-        is parsed to an integer.
-        '''
-        assert parse_seed('W01') == 1
 
-    def test_double_digit_seed(self) -> None:
-        '''
-        tests that a two-digit region-seed string 
-        is correctly parsed to an integer.
-        '''
-        assert parse_seed('X16') == 16
+@pytest.fixture
+def prepared_seeds(seeds_df: pd.DataFrame) -> pd.DataFrame:
+    '''
+    provides a mock seeds dataframe with a parsed integer seed column.
+    '''
+    out = seeds_df.copy()
+    out['seed'] = out['Seed'].apply(parse_seed)
+    return out[['Season', 'TeamID', 'seed']]
 
-    def test_playin_suffix_ignored(self) -> None:
-        '''
-        tests that character suffixes denoting play-in games 
-        are ignored during seed parsing.
-        '''
-        assert parse_seed('X16a') == 16
-        assert parse_seed('Y11b') == 11
 
-    def test_no_digits_raises(self) -> None:
-        '''
-        tests that parsing a string with no digits 
-        raises a valueerror.
-        '''
-        with pytest.raises(ValueError):
-            parse_seed('ABC')
-
-class TestLoadData:
+class TestLoadUpsetData:
     def test_filters_seasons_to_config_range(self, tmp_path, config: dict, team_stats_df: pd.DataFrame, seeds_df: pd.DataFrame, tourney_results_df: pd.DataFrame) -> None:
         '''
-        tests that the loaded tournament data is 
-        strictly filtered to the seasons specified 
+        tests that the loaded tournament data is
+        strictly filtered to the seasons specified
         in the configuration.
         '''
         config['data']['processed_dir'] = str(tmp_path)
         team_stats_df.to_csv(tmp_path / f"team_stats_{config['data']['experiment_name']}.csv", index=False)
 
-        _, _, filtered_tourney = load_data(config, tourney_results_df.copy(), seeds_df.copy())
+        _, _, filtered_tourney = load_upset_data(config, tourney_results_df.copy(), seeds_df.copy())
 
         # tourney_results_df spans 2009-2014; config range is [2010, 2013]
         assert filtered_tourney['Season'].min() == 2010
@@ -122,14 +101,14 @@ class TestLoadData:
 
     def test_parses_seed_column(self, tmp_path, config: dict, team_stats_df: pd.DataFrame, seeds_df: pd.DataFrame, tourney_results_df: pd.DataFrame) -> None:
         '''
-        tests that the raw seed column is converted 
-        to an integer 'seed' column and the original 
+        tests that the raw seed column is converted
+        to an integer 'seed' column and the original
         is dropped.
         '''
         config['data']['processed_dir'] = str(tmp_path)
         team_stats_df.to_csv(tmp_path / f"team_stats_{config['data']['experiment_name']}.csv", index=False)
 
-        _, seeds_out, _ = load_data(config, tourney_results_df.copy(), seeds_df.copy())
+        _, seeds_out, _ = load_upset_data(config, tourney_results_df.copy(), seeds_df.copy())
 
         assert 'seed' in seeds_out.columns
         assert 'Seed' not in seeds_out.columns  # raw string column dropped
@@ -140,100 +119,114 @@ class TestLoadData:
 
     def test_reads_team_stats_from_processed_dir(self, tmp_path, config: dict, team_stats_df: pd.DataFrame, seeds_df: pd.DataFrame, tourney_results_df: pd.DataFrame) -> None:
         '''
-        tests that team statistics are correctly read 
-        from the configured processed directory.
+        tests that team statistics are correctly read
+        from the configured processed directory using the
+        experiment-name-suffixed filename.
         '''
         config['data']['processed_dir'] = str(tmp_path)
         team_stats_df.to_csv(tmp_path / f"team_stats_{config['data']['experiment_name']}.csv", index=False)
 
-        team_stats_out, _, _ = load_data(config, tourney_results_df.copy(), seeds_df.copy())
+        team_stats_out, _, _ = load_upset_data(config, tourney_results_df.copy(), seeds_df.copy())
 
         assert list(team_stats_out.columns) == list(team_stats_df.columns)
         assert len(team_stats_out) == len(team_stats_df)
 
-class TestBuildMatchups:
-    @pytest.fixture
-    def prepared_seeds(self, seeds_df: pd.DataFrame) -> pd.DataFrame:
-        '''
-        provides a mock seeds dataframe with 
-        a parsed integer seed column.
-        '''
-        out = seeds_df.copy()
-        out['seed'] = out['Seed'].apply(parse_seed)
-        return out[['Season', 'TeamID', 'seed']]
 
+class TestBuildUpsetMatchups:
     @pytest.fixture
-    def small_tourney(self) -> pd.DataFrame:
+    def favorite_wins_tourney(self) -> pd.DataFrame:
         '''
-        provides a single-game tournament dataframe 
-        for simplified diff and mirror validation.
+        provides a single game where the #1 seed (team 1) beats
+        the #16 seed (team 2) -- the expected, non-upset outcome.
         '''
-        # one game, one season, to make diff/mirror math easy to verify by hand.
         return pd.DataFrame([{'Season': 2010, 'WTeamID': 1, 'LTeamID': 2}])
 
-    def test_row_count_is_doubled(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, small_tourney: pd.DataFrame) -> None:
+    @pytest.fixture
+    def underdog_wins_tourney(self) -> pd.DataFrame:
         '''
-        tests that building matchups creates two rows 
-        (original and mirrored) for every one game.
+        provides a single game where the #16 seed (team 2) beats
+        the #1 seed (team 1) -- an upset.
         '''
-        matchups = build_matchups(team_stats_df, prepared_seeds, small_tourney, config)
-        # one game in -> one original row + one mirrored row
-        assert len(matchups) == 2
+        return pd.DataFrame([{'Season': 2010, 'WTeamID': 2, 'LTeamID': 1}])
 
-    def test_label_balance_is_exact(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, small_tourney: pd.DataFrame) -> None:
+    def test_row_count_is_not_doubled(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, favorite_wins_tourney: pd.DataFrame) -> None:
         '''
-        tests that the mirrored data generation maintains 
-        a perfectly balanced label distribution.
+        tests that, unlike the winner/loser dataset, the upset dataset
+        produces exactly one row per game -- no mirroring.
         '''
-        matchups = build_matchups(team_stats_df, prepared_seeds, small_tourney, config)
-        counts = matchups['label'].value_counts()
-        assert counts.get(1) == 1
-        assert counts.get(0) == 1
+        matchups = build_upset_matchups(team_stats_df, prepared_seeds, favorite_wins_tourney, config)
+        assert len(matchups) == 1
 
-    def test_diff_values_correct(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, small_tourney: pd.DataFrame) -> None:
+    def test_label_is_zero_when_favorite_wins(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, favorite_wins_tourney: pd.DataFrame) -> None:
         '''
-        tests that the calculated differences for features 
-        (seed, win percentage, points) match expected arithmetic.
+        tests that no upset is recorded (label=0) when the lower-seeded
+        favorite wins the game.
         '''
-        matchups = build_matchups(team_stats_df, prepared_seeds, small_tourney, config)
-        original = matchups[matchups['label'] == 1].iloc[0]
+        matchups = build_upset_matchups(team_stats_df, prepared_seeds, favorite_wins_tourney, config)
+        assert matchups.iloc[0]['label'] == 0
 
-        # team 1 (winner): seed 1, win_pct 0.60, pts 75.0
-        # team 2 (loser):  seed 16, win_pct 0.45, pts 68.0
-        assert original['seed_diff'] == pytest.approx(1 - 16)
-        assert original['win_pct_diff'] == pytest.approx(0.60 - 0.45)
-        assert original['pts_diff'] == pytest.approx(75.0 - 68.0)
-
-    def test_mirrored_row_is_negation_with_flipped_label(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, small_tourney: pd.DataFrame) -> None:
+    def test_label_is_one_when_underdog_wins(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, underdog_wins_tourney: pd.DataFrame) -> None:
         '''
-        tests that the mirrored matchup row correctly negates 
-        feature values and flips the target label.
+        tests that an upset is recorded (label=1) when the higher-seeded
+        underdog wins the game.
         '''
-        matchups = build_matchups(team_stats_df, prepared_seeds, small_tourney, config)
-        original = matchups[matchups['label'] == 1].iloc[0]
-        mirrored = matchups[matchups['label'] == 0].iloc[0]
+        matchups = build_upset_matchups(team_stats_df, prepared_seeds, underdog_wins_tourney, config)
+        assert matchups.iloc[0]['label'] == 1
 
-        for col in config['features']['columns']:
-            assert mirrored[col] == pytest.approx(-original[col])
-        assert mirrored['Season'] == original['Season']
+    def test_features_are_favorite_minus_underdog_regardless_of_winner(self, config: dict, team_stats_df: pd.DataFrame, prepared_seeds: pd.DataFrame, favorite_wins_tourney: pd.DataFrame, underdog_wins_tourney: pd.DataFrame) -> None:
+        '''
+        tests that the feature diffs are always oriented favorite-stat
+        minus underdog-stat, so they come out identical whether the
+        favorite or the underdog actually won the game -- only the
+        label should differ.
+        '''
+        favorite_win_matchups = build_upset_matchups(team_stats_df, prepared_seeds, favorite_wins_tourney, config)
+        underdog_win_matchups = build_upset_matchups(team_stats_df, prepared_seeds, underdog_wins_tourney, config)
 
-class TestBuildMatchupsMergeIntegrity:
+        favorite_row = favorite_win_matchups.iloc[0]
+        underdog_row = underdog_win_matchups.iloc[0]
+
+        # team 1 (favorite, seed 1): win_pct 0.60, pts 75.0
+        # team 2 (underdog, seed 16): win_pct 0.45, pts 68.0
+        for row in (favorite_row, underdog_row):
+            assert row['seed_diff'] == pytest.approx(1 - 16)
+            assert row['win_pct_diff'] == pytest.approx(0.60 - 0.45)
+            assert row['pts_diff'] == pytest.approx(75.0 - 68.0)
+
+        assert favorite_row['label'] != underdog_row['label']
+
+    def test_equal_seed_games_are_dropped(self, config: dict, team_stats_df: pd.DataFrame) -> None:
+        '''
+        tests that games between two teams sharing the same seed are
+        dropped entirely, since there's no favorite to define an upset
+        against.
+        '''
+        tied_seeds = pd.DataFrame([
+            {'Season': 2010, 'TeamID': 1, 'seed': 8},
+            {'Season': 2010, 'TeamID': 2, 'seed': 8},
+        ])
+        tourney = pd.DataFrame([{'Season': 2010, 'WTeamID': 1, 'LTeamID': 2}])
+
+        matchups = build_upset_matchups(team_stats_df, tied_seeds, tourney, config)
+        assert len(matchups) == 0
+
+
+class TestBuildUpsetMatchupsMergeIntegrity:
     @pytest.fixture
     def two_game_tourney(self) -> pd.DataFrame:
         '''
-        provides a two-game, two-season tournament dataframe 
+        provides a two-game, two-season tournament dataframe
         for testing merge behaviors.
         '''
-        # two independent games, two different seasons.
         return pd.DataFrame([
             {'Season': 2010, 'WTeamID': 1, 'LTeamID': 2},
             {'Season': 2011, 'WTeamID': 3, 'LTeamID': 4},
         ])
 
-    def test_complete_stats_and_seeds_yields_all_games_doubled(self, config: dict) -> None:
+    def test_complete_stats_and_seeds_yields_all_games(self, config: dict) -> None:
         '''
-        tests that complete datasets result in all games 
-        being successfully merged and doubled.
+        tests that complete datasets result in all games being
+        successfully merged, one row per game (no mirroring).
         '''
         team_stats = pd.DataFrame([
             {'season': 2010, 'team_id': 1, 'win_pct': 0.6, 'pts': 75.0},
@@ -250,13 +243,13 @@ class TestBuildMatchupsMergeIntegrity:
             {'Season': 2011, 'WTeamID': 3, 'LTeamID': 4},
         ])
 
-        matchups = build_matchups(team_stats, seeds, tourney, config)
-        # 2 games in -> 2 original + 2 mirrored = 4 rows out. no games lost.
-        assert len(matchups) == 4
+        matchups = build_upset_matchups(team_stats, seeds, tourney, config)
+        # 2 games in -> 2 rows out, no games lost, no mirroring.
+        assert len(matchups) == 2
 
     def test_missing_stats_row_silently_drops_that_game(self, config: dict, two_game_tourney: pd.DataFrame) -> None:
         '''
-        tests that missing a team statistics record causes 
+        tests that missing a team statistics record causes
         the related game to be dropped via inner join.
         '''
         # team 4's stats row is missing entirely -> the 2011 game should vanish.
@@ -271,15 +264,14 @@ class TestBuildMatchupsMergeIntegrity:
             {'Season': 2011, 'TeamID': 3, 'seed': 5}, {'Season': 2011, 'TeamID': 4, 'seed': 12},
         ])
 
-        matchups = build_matchups(incomplete_stats, seeds, two_game_tourney, config)
-        # only the 2010 game survives -> 1 original + 1 mirrored = 2 rows.
-        # known gap: this drop happens silently (inner join), with no error raised.
-        assert len(matchups) == 2
+        matchups = build_upset_matchups(incomplete_stats, seeds, two_game_tourney, config)
+        # only the 2010 game survives -> 1 row.
+        assert len(matchups) == 1
         assert set(matchups['Season'].unique()) == {2010}
 
     def test_missing_seed_row_silently_drops_that_game(self, config: dict, two_game_tourney: pd.DataFrame) -> None:
         '''
-        tests that missing a seed record causes the related 
+        tests that missing a seed record causes the related
         game to be dropped via inner join.
         '''
         team_stats = pd.DataFrame([
@@ -295,15 +287,16 @@ class TestBuildMatchupsMergeIntegrity:
             # teamid 4 missing for season 2011
         ])
 
-        matchups = build_matchups(team_stats, incomplete_seeds, two_game_tourney, config)
-        assert len(matchups) == 2
+        matchups = build_upset_matchups(team_stats, incomplete_seeds, two_game_tourney, config)
+        assert len(matchups) == 1
         assert set(matchups['Season'].unique()) == {2010}
+
 
 class TestSplitBySeason:
     @pytest.fixture
     def multi_season_matchups(self, config: dict) -> pd.DataFrame:
         '''
-        provides a generic matchups dataframe spanning multiple 
+        provides a generic matchups dataframe spanning multiple
         seasons for testing data splits.
         '''
         feature_cols = config['features']['columns']
@@ -314,7 +307,7 @@ class TestSplitBySeason:
 
     def test_train_val_test_partition_correctly(self, config: dict, multi_season_matchups: pd.DataFrame) -> None:
         '''
-        tests that data partitions correctly allocate rows 
+        tests that data partitions correctly allocate rows
         to train, val, and test based on the configuration.
         '''
         X_train, y_train, X_val, y_val, X_test, y_test = split_by_season(
@@ -327,28 +320,28 @@ class TestSplitBySeason:
 
     def test_excludes_seasons_outside_range(self, config: dict, multi_season_matchups: pd.DataFrame) -> None:
         '''
-        tests that seasons not specified in the configuration 
+        tests that seasons not specified in the configuration
         splits are entirely excluded from output arrays.
         '''
-        # 2009 and 2014 belong to none of train/val/test
         X_train, y_train, X_val, y_val, X_test, y_test = split_by_season(
             multi_season_matchups, config
         )
         total_rows = X_train.shape[0] + X_val.shape[0] + X_test.shape[0]
-        assert total_rows == 4 # not 6
+        assert total_rows == 4  # not 6
 
     def test_feature_column_count_matches_config(self, config: dict, multi_season_matchups: pd.DataFrame) -> None:
         '''
-        tests that the generated feature arrays have a column count 
+        tests that the generated feature arrays have a column count
         matching the configured feature list.
         '''
         X_train, *_ = split_by_season(multi_season_matchups, config)
         assert X_train.shape[1] == len(config['features']['columns'])
 
+
 class TestNormalizeSplits:
     def test_train_mean_and_std_after_normalization(self, config: dict) -> None:
         '''
-        tests that normalizing the training split correctly standardizes 
+        tests that normalizing the training split correctly standardizes
         it to zero mean and unit variance.
         '''
         rng = np.random.default_rng(42)
@@ -363,28 +356,9 @@ class TestNormalizeSplits:
         np.testing.assert_allclose(X_train_norm.mean(axis=0), 0.0, atol=1e-8)
         np.testing.assert_allclose(X_train_norm.std(axis=0), 1.0, atol=1e-8)
 
-    def test_val_and_test_use_train_stats_not_their_own(self, config: dict) -> None:
-        '''
-        tests that validation and test sets are normalized using the 
-        training set statistics rather than their own.
-        '''
-        # train has a different mean than val -> val_norm should not be centered at 0
-        X_train = np.full((50, 3), 5.0)
-        X_val = np.full((10, 3), 50.0)
-        X_test = np.full((10, 3), 5.0)
-
-        # inject a bit of spread so std isn't zero
-        X_train[0] += 1.0
-
-        X_train_norm, X_val_norm, X_test_norm, norm_stats = normalize_splits(
-            X_train, X_val, X_test, config
-        )
-        # val was 10x train's value -> after applying train's mean/std it should be far from 0
-        assert np.all(X_val_norm > 5)
-
     def test_zero_variance_feature_does_not_produce_nan(self, config: dict) -> None:
         '''
-        tests that normalizing a constant feature correctly defaults 
+        tests that normalizing a constant feature correctly defaults
         to replacing a zero variance with 1.0 to prevent nans.
         '''
         X_train = np.ones((20, 3))  # every feature constant -> std = 0
@@ -400,7 +374,7 @@ class TestNormalizeSplits:
 
     def test_norm_stats_contains_feature_order(self, config: dict) -> None:
         '''
-        tests that the returned normalization statistics dictionary 
+        tests that the returned normalization statistics dictionary
         tracks the original feature column order.
         '''
         X_train = np.random.default_rng(0).normal(size=(20, 3))
@@ -409,28 +383,28 @@ class TestNormalizeSplits:
         assert len(norm_stats['mean']) == 3
         assert len(norm_stats['std']) == 3
 
-class TestSaveNormStats:
-    def test_writes_valid_json_to_expected_path(self, tmp_path) -> None:
-        '''
-        tests that normalization statistics are correctly serialized 
-        and saved to a valid json file.
-        '''
-        norm_stats = {'mean': [1.0, 2.0], 'std': [0.5, 1.5], 'feature_order': ['a', 'b']}
-        path = str(tmp_path) + '/norm_stats.json'
-        with open(path, 'w') as f:
-            json.dump(norm_stats, f, indent=2)
 
-        assert path == f'{tmp_path}/norm_stats.json'
-        with open(path) as f:
-            loaded = json.load(f)
-        assert loaded == norm_stats
+class TestBuildUpsetSplitsEndToEnd:
+    @pytest.fixture
+    def mixed_tourney_results_df(self) -> pd.DataFrame:
+        '''
+        provides tournament results across 2009-2014 where the favorite
+        (team 1) wins in even seasons and the underdog (team 2) upsets
+        in odd seasons, so both labels are exercised end-to-end.
+        '''
+        rows = []
+        for season in range(2009, 2015):
+            if season % 2 == 0:
+                rows.append({'Season': season, 'WTeamID': 1, 'LTeamID': 2})  # favorite wins
+            else:
+                rows.append({'Season': season, 'WTeamID': 2, 'LTeamID': 1})  # upset
+        return pd.DataFrame(rows)
 
-class TestBuildSplitsEndToEnd:
     @pytest.fixture
     def prepared_dirs(self, tmp_path, config: dict, team_stats_df: pd.DataFrame) -> tuple:
         '''
-        provides a tuple containing a prepared config 
-        and temporary splits directory for end-to-end tests.
+        provides a tuple containing a prepared config
+        and the per-experiment splits directory build_upset_splits writes to.
         '''
         processed_dir = tmp_path / 'processed'
         splits_dir = tmp_path / 'splits'
@@ -441,22 +415,21 @@ class TestBuildSplitsEndToEnd:
         config['data']['splits_dir'] = str(splits_dir)
         team_stats_df.to_csv(processed_dir / f"team_stats_{config['data']['experiment_name']}.csv", index=False)
 
-        # build_splits writes into a per-experiment subfolder of splits_dir
         experiment_splits_dir = splits_dir / config['data']['experiment_name']
 
         return config, experiment_splits_dir
 
-    def test_produces_all_expected_files_with_correct_shapes(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, tourney_results_df: pd.DataFrame) -> None:
+    def test_produces_all_expected_files_with_correct_shapes(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, mixed_tourney_results_df: pd.DataFrame) -> None:
         '''
-        tests that the end-to-end pipeline generates all required train, 
-        validation, and test arrays as well as the json stats.
+        tests that the end-to-end upset pipeline generates all required
+        train, validation, and test arrays as well as the json stats.
         '''
         config, splits_dir = prepared_dirs
 
-        team_stats_out, seeds_out, tourney_out = load_data(
-            config, tourney_results_df.copy(), seeds_df.copy()
+        team_stats_out, seeds_out, tourney_out = load_upset_data(
+            config, mixed_tourney_results_df.copy(), seeds_df.copy()
         )
-        build_splits(config, team_stats_out, seeds_out, tourney_out)
+        build_upset_splits(config, team_stats_out, seeds_out, tourney_out)
 
         expected_files = [
             'X_train.npy', 'y_train.npy',
@@ -472,55 +445,73 @@ class TestBuildSplitsEndToEnd:
         assert X_train.shape[0] == y_train.shape[0]
         assert X_train.shape[1] == len(config['features']['columns'])
 
-    def test_labels_are_strictly_binary(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, tourney_results_df: pd.DataFrame) -> None:
+    def test_labels_are_strictly_binary(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, mixed_tourney_results_df: pd.DataFrame) -> None:
         '''
-        tests that generated model target labels consist 
-        exclusively of 0s and 1s.
+        tests that generated upset labels consist exclusively of 0s and 1s.
         '''
         config, splits_dir = prepared_dirs
 
-        team_stats_out, seeds_out, tourney_out = load_data(
-            config, tourney_results_df.copy(), seeds_df.copy()
+        team_stats_out, seeds_out, tourney_out = load_upset_data(
+            config, mixed_tourney_results_df.copy(), seeds_df.copy()
         )
-        build_splits(config, team_stats_out, seeds_out, tourney_out)
+        build_upset_splits(config, team_stats_out, seeds_out, tourney_out)
 
         y_train = np.load(splits_dir / 'y_train.npy')
         assert set(np.unique(y_train)).issubset({0, 1})
 
-    def test_train_is_normalized_to_zero_mean(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, tourney_results_df: pd.DataFrame) -> None:
+    def test_row_count_is_not_doubled_end_to_end(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, mixed_tourney_results_df: pd.DataFrame) -> None:
         '''
-        tests that the final saved training feature matrix has 
-        a mean of zero across all columns.
-        '''
-        config, splits_dir = prepared_dirs
-
-        team_stats_out, seeds_out, tourney_out = load_data(
-            config, tourney_results_df.copy(), seeds_df.copy()
-        )
-        build_splits(config, team_stats_out, seeds_out, tourney_out)
-
-        X_train = np.load(splits_dir / 'X_train.npy')
-        np.testing.assert_allclose(X_train.mean(axis=0), 0.0, atol=1e-6)
-
-    def test_row_count_matches_expected_given_two_teams_across_seasons(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, tourney_results_df: pd.DataFrame) -> None:
-        '''
-        tests that the final exported arrays have the correct exact 
-        row counts based on the config seasons and doubling logic.
+        tests that the final exported arrays have exactly one row per
+        game (no mirroring), unlike the winner/loser dataset pipeline.
         '''
         config, splits_dir = prepared_dirs
 
-        team_stats_out, seeds_out, tourney_out = load_data(
-            config, tourney_results_df.copy(), seeds_df.copy()
+        team_stats_out, seeds_out, tourney_out = load_upset_data(
+            config, mixed_tourney_results_df.copy(), seeds_df.copy()
         )
-        build_splits(config, team_stats_out, seeds_out, tourney_out)
+        build_upset_splits(config, team_stats_out, seeds_out, tourney_out)
 
-        # config: train_seasons=[2010, 2011] -> 2 seasons, 1 game/season, doubled = 4 rows
-        # val_season=2012 -> 1 game, doubled = 2 rows
-        # test_season=2013 -> 1 game, doubled = 2 rows
+        # config: train_seasons=[2010, 2011] -> 2 seasons, 1 game/season, not doubled = 2 rows
+        # val_season=2012 -> 1 game = 1 row
+        # test_season=2013 -> 1 game = 1 row
         X_train = np.load(splits_dir / 'X_train.npy')
         X_val = np.load(splits_dir / 'X_val.npy')
         X_test = np.load(splits_dir / 'X_test.npy')
 
-        assert X_train.shape[0] == 4
-        assert X_val.shape[0] == 2
-        assert X_test.shape[0] == 2
+        assert X_train.shape[0] == 2
+        assert X_val.shape[0] == 1
+        assert X_test.shape[0] == 1
+
+    def test_upset_rate_reflects_alternating_results(self, prepared_dirs: tuple, seeds_df: pd.DataFrame, mixed_tourney_results_df: pd.DataFrame) -> None:
+        '''
+        tests that the saved training labels correctly reflect which
+        seasons were upsets (odd) vs favorite wins (even) in the fixture.
+        '''
+        config, splits_dir = prepared_dirs
+
+        team_stats_out, seeds_out, tourney_out = load_upset_data(
+            config, mixed_tourney_results_df.copy(), seeds_df.copy()
+        )
+        build_upset_splits(config, team_stats_out, seeds_out, tourney_out)
+
+        # train_seasons = [2010, 2011]: 2010 is a favorite win (label 0),
+        # 2011 is an upset (label 1) -> exactly one of each in y_train.
+        y_train = np.load(splits_dir / 'y_train.npy')
+        assert sorted(y_train.tolist()) == [0, 1]
+
+
+class TestSaveNormStats:
+    def test_writes_valid_json_to_expected_path(self, tmp_path) -> None:
+        '''
+        tests that normalization statistics are correctly serialized
+        and saved to a valid json file.
+        '''
+        norm_stats = {'mean': [1.0, 2.0], 'std': [0.5, 1.5], 'feature_order': ['a', 'b']}
+        path = str(tmp_path) + '/norm_stats.json'
+        with open(path, 'w') as f:
+            json.dump(norm_stats, f, indent=2)
+
+        assert path == f'{tmp_path}/norm_stats.json'
+        with open(path) as f:
+            loaded = json.load(f)
+        assert loaded == norm_stats

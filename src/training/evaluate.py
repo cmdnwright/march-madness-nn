@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.metrics import roc_auc_score, log_loss
+from sklearn.metrics import roc_auc_score, log_loss, brier_score_loss
 
 
 def evaluate(probs: np.ndarray, labels: np.ndarray) -> dict:
@@ -15,7 +15,7 @@ def evaluate(probs: np.ndarray, labels: np.ndarray) -> dict:
     Returns
     -------
     dict
-        accuracy, auc, and log loss of the predictions
+        accuracy, auc, log loss, and brier score of the predictions
     '''
     probs = np.asarray(probs).flatten()
     labels = np.asarray(labels).flatten()
@@ -24,9 +24,11 @@ def evaluate(probs: np.ndarray, labels: np.ndarray) -> dict:
     accuracy = float(np.mean(preds == labels))
     auc = roc_auc_score(labels, probs)
     loss = log_loss(labels, probs)
+    brier = brier_score_loss(labels, probs)
 
     return {
         'accuracy': accuracy,
         'auc': auc,
         'loss': loss,
+        'brier': brier
     }

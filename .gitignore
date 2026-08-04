@@ -1,26 +1,29 @@
-# Data
+# data
 data/raw/
 data/processed/
 data/splits/
 
-# Models
+# models
 models/
 
-# Predictions
-predictions/
-
-# Environment
+# environment
 .env
 __pycache__/
 *.pyc
 *.pyo
 
-# Jupyter
+# jupyter
 .ipynb_checkpoints/
 
-# OS
+# os
 .DS_Store
 Thumbs.db
 
 # vscode settings
 .vscode/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
