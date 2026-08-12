@@ -105,7 +105,7 @@ All scripts and modules are fully documented. See source files for implementatio
 
 ## Reproducing this project
 
-````bash
+```bash
 # 1. clone and install
 git clone <repo-url>
 pip install -r requirements.txt
