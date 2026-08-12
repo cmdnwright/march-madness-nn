@@ -6,18 +6,24 @@ and models/final/model_experiment_name
 
 change experiment by editing CONFIG_PATH constant to match config location relative to root
 
-run using python -m scripts.run_training.py
+run using python -m scripts.run_training --config configs/upset.yaml
 '''
 
+
+import argparse
 from src.utils.config import load_config
 from src.model.model import MatchupClassifier
 from src.training.train import train_model
 import numpy as np
 
-CONFIG_PATH = 'configs/upset.yaml'
+CONFIG_PATH = 'configs/baseline.yaml'
 
 def main():
-    config = load_config(CONFIG_PATH)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default=CONFIG_PATH, help='path to config yaml')
+    args = parser.parse_args()
+
+    config = load_config(args.config)
 
     experiment_name = config['data']['experiment_name']
     splits_dir = f'{config["data"]["splits_dir"]}/{experiment_name}'

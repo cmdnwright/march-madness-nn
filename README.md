@@ -1,6 +1,6 @@
-# A Comparative Study of Classical and Neural Approaches
+# A Comparative Study of Classical and Neural Approaches for Tournament Predictions
 
-A rigorous, statistically grounded evaluation of machine learning methods for predicting NCAA Men's Basketball Tournament outcomes. Predictions are made at the individual game level and the full-bracket level using 20 seasons of regular season and tournament data.
+A rigorous, statistically grounded evaluation of machine learning methods for predicting NCAA Men's Basketball Tournament outcomes. Predictions are made at the individual game level and the full-bracket level using 20 seasons of regular season and tournament data. We first test various feature sets at the individual level before evaluating models, including our best upset-prediction-hybrid model, at the tournament level.
 
 ### Key Findings
 No model in this study achieves a statistically significant improvement over the seed heuristic (McNemar's test, Holm-Bonferroni corrected) at the individual game level, and no bracket-simulation strategy statistically outperforms simply picking the higher seed every round (Wilcoxon signed rank test, Holm-Bonferroni corrected), with the exception a hybrid seed/upset model that matches chalk's expected score while reducing its variance.
@@ -21,35 +21,37 @@ Is Team A more likely to win than Team B? Trained on 2003-2023 seasons, val on 2
 | Random Forest (100 trees) | 0.761 | 0.813 | 0.550|
 | SVM | 0.746 | 0.805 | 0.564 |
 | Neural Network | 0.724 | 0.830 | 0.503 |
-| Naive Seed | 0.784 | — | — |
+| Naive Seed | 0.784 | - | - |
 
 **McNemar's Test Standard p-values**
 | Model | LR | RF | SVM |
 | :--- | :--- | :--- | :--- |
-| **RF** | 0.423950 | |  |
-| **SVM** | 0.790527 | 0.790527 |  |
+| **RF** | 0.423950 | - | - |
+| **SVM** | 0.790527 | 0.790527 | -|
 | **NN** | 1.000000 | 0.332306 | 0.607239 |
 
 **McNemar's Test Holm-Corrected p-values**
 | Model | LR | RF | SVM |
 | :--- | :--- | :--- | :--- |
-| **RF** | 1.000000 | | | 
-| **SVM** | 1.000000 | 1.000000 |  | 
+| **RF** | 1.000000 | - | - | 
+| **SVM** | 1.000000 | 1.000000 | - | 
 | **NN** | 1.000000 | 1.000000 | 1.000000 | 
 
-*Table reflects baseline feature set performance. See [`game_simulations.ipynb`](game_simulations.ipynb) for all tested feature sets and [`METHODOLOGY.md`](METHODOLOGY.md) for feature engineering approach*
+*Table reflects baseline feature set performance. See [`game_simulations.ipynb`](game_simulations.ipynb) for all tested feature sets and [`METHODS.md`](METHODS.md) for feature engineering approach*
 
 ### Bracket-Level Simulation 
 Leave-one-season-out (LOSO) cross-validation, full 67-game bracket per season, scored on standard ESPN-style points, simulated 1000 brackets per season from 2003-2023.  
 
-| Strategy | Mean season score (out of 1920) | vs chalk p-value |
-|---|---|---|
-| Chalk | 862.632 | — |
-| Hybrid Upset Model | 777.895 | .229 |
-| Logistic Regression | 631.951 | ~0 |
-| Random | 311.226 | ~0 |
+| Strategy | Mean season score (out of 1920)| vs chalk p-value | STD | Win rate vs chalk
+|---|---|---|---|---|
+| Chalk | 862.632 | - | 296.364 | - |
+| Hybrid Upset Model | 777.895 | .229 | 209.379 | 0.526 |
+| Logistic Regression | 631.951 | ~ 0 | 97.284 | 0.105 |
+| Random | 311.226 | ~ 0 | 3.424 | 0.0
 
 *p-values are listed for a Wilcoxon signed rank test after Holm-Bonferroni correction to account increased false positive rate after repeated comparisons*
+
+For the full mathematical derivation and reasoning of all significant feature ideas, model choices, and statistical tests see [**METHODs.md**](METHODs.md).
 
 ## Results
 
@@ -101,25 +103,29 @@ march-madness-nn/
 ```
 All scripts and modules are fully documented. See source files for implementation decisions.
 
-For the full mathematical derivation and reasoning of all significant feature ideas, model choices, and statistical tests see [**METHODOLOGY.md**](METHODOLOGY.md).
-
 ## Reproducing this project
 
-```bash
+````bash
 # 1. clone and install
 git clone <repo-url>
 pip install -r requirements.txt
 
 # 2. place Kaggle data in data/raw/
 
-# 3. run data script for all winner prediction feature sets by changing the CONFIG_PATH constant to each relevant config (baseline, colley, season)
-python -m scripts.build_dataset
+# 3. run data script for all winner prediction feature sets
+python -m scripts.build_dataset --config configs/baseline.yaml
+python -m scripts.build_dataset --config configs/colley.yaml
+python -m scripts.build_dataset --config configs/season.yaml
 
 # 4. run data script for upset prediction feature set
-python -m scripts.build_upset_dataset
+python -m scripts.build_upset_dataset --config configs/upset.yaml
 
-# 5. train all desired models (all for notebook) by changing the CONFIG_PATH constant to each config (baseline, colley, season, focal, upset)
-python -m scripts.run_training
+# 5. train all desired models
+python -m scripts.run_training --config configs/baseline.yaml
+python -m scripts.run_training --config configs/colley.yaml
+python -m scripts.run_training --config configs/season.yaml
+python -m scripts.run_training --config configs/focal.yaml
+python -m scripts.run_training --config configs/upset.yaml
 
 # 6. run all notebooks
 ```
