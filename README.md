@@ -68,9 +68,9 @@ For the full mathematical derivation and reasoning of all significant feature id
 ## Limitations and future work
 - Baseline diff based features showed promise in exploratory data analysis, but is a very uncommon feature choice in successful solutions to the Kaggle Competition. Engineering features based on metrics like efficiency while retaining seed information could cut out noise created by less informative features like baseline stat diffs. Further feature engineering analysis should be done to compare predictive power specifically in the context of predicting winners vs predicting upsets.
 
-- All models, specifically win prediction models are explicitly trained to predict single game outcomes. A key challenge of preditcting brackets is understand how current round picks influence future matchups, and a model trained on bracket score rather than BCE for single games could potentially learn how to hedge results or better understand follow-up game trends
+- All models, specifically win prediction models are explicitly trained to predict single game outcomes. A key challenge of predicting brackets is understanding how current round picks influence future matchups, and a model trained on bracket score rather than BCE for single games could potentially learn how to hedge results or better understand follow-up game trends
 
-- Using a single test season for the single game evaluation leaves a relatively small sample size for statistical evaluation, meaning there is a high likilood our statistical results are under powered rather than genuinely null. Single game simulations would benefit from the same loso cross validation used in bracket simulations
+- Using a single test season for the single game evaluation leaves a relatively small sample size for statistical evaluation, meaning there is a high likelihood our statistical results are under powered rather than genuinely null. Single game simulations would benefit from the same loso cross validation used in bracket simulations
 
 - The hybrid upset model's threshold was selected based on historical upset rate to prevent data leakage. Cross validation hyperparameter tuning could yield better results
 
