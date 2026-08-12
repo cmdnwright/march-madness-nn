@@ -1,11 +1,77 @@
 # Methods Summary
+This serves as a collection of mathematical formulations, derivations, and justifications for all choices made in the production of this project. See the table of contents for specific inclusions.
+
+### Table of Contents
+
+1. [Model Choices](#model-choices)
+   - [Logistic Regression](#logistic-regression)
+     - [Loss](#loss)
+     - [Gradient Derivation](#gradient-derivation)
+     - [Solving](#solving)
+     - [Expected Performance](#expected-performance)
+   - [Random Forest](#random-forest)
+     - [Splitting](#splitting)
+     - [Variance Reduction](#variance-reduction)
+     - [Expected Performance](#expected-performance-1)
+   - [Support Vector Machines](#support-vector-machines)
+     - [Loss](#loss-1)
+     - [Dual Derivation](#dual-derivation)
+     - [Platt Scaling](#platt-scaling)
+     - [Loss](#loss-2)
+     - [Gradient Derivation](#gradient-derivation-1)
+     - [Expected Performance](#expected-performance-2)
+   - [Single Hidden Layer MLP](#single-hidden-layer-mlp)
+     - [Loss](#loss-3)
+     - [Gradient Derivation](#gradient-derivation-2)
+     - [Solving](#solving-1)
+     - [Expected Performance](#expected-performance-3)
+     - [Focal Loss](#focal-loss)
+     - [Loss](#loss-4)
+     - [Gradient Derivation](#gradient-derivation-3)
+     - [Solving](#solving-2)
+     - [Expected Performance](#expected-performance-4)
+2. [Evaluation Metrics](#evaluation-metrics)
+   - [Accuracy](#accuracy)
+     - [Threshold Invariance](#threshold-invariance)
+   - [Area Under the Receiver Operating Characteristic Curve](#area-under-the-receiver-operating-characteristic-curve)
+     - [Rank Interpretation Derivation](#rank-interpretation-derivation)
+     - [Interpretation](#interpretation)
+   - [Log Loss](#log-loss)
+     - [Proper Scoring Rule Derivation](#proper-scoring-rule-derivation)
+     - [Interpretation](#interpretation-1)
+   - [Brier Score](#brier-score)
+     - [Proper Scoring Rule Derivation](#proper-scoring-rule-derivation-1)
+     - [Murphy Decomposition](#murphy-decomposition)
+     - [Interpretation](#interpretation-2)
+   - [Reliability Diagrams](#reliability-diagrams)
+     - [Expected Calibration Error](#expected-calibration-error)
+     - [Interpretation](#interpretation-3)
+3. [Feature Derivations](#feature-derivations)
+   - [Rating Systems](#rating-systems)
+     - [Massey Rating](#massey-rating)
+     - [Colley Rating](#colley-rating)
+   - [Momentum Features](#momentum-features)
+4. [Statistical Tests](#statistical-tests)
+   - [McNemar's Test](#mcnemars-test)
+     - [Derivation](#derivation)
+     - [Interpretation](#interpretation-4)
+   - [Paired t-Test](#paired-t-test)
+     - [Derivation](#derivation-1)
+     - [Interpretation](#interpretation-5)
+   - [Wilcoxon Signed Rank Test](#wilcoxon-signed-rank-test)
+     - [Derivation](#derivation-2)
+     - [Interpretation](#interpretation-6)
+   - [Holm-Bonferroni Correction](#holm-bonferroni-correction)
+     - [Procedure](#procedure)
+     - [Derivation](#derivation-3)
+     - [Interpretation](#interpretation-7)
 
 ## Model Choices
 
 ### Logistic Regression
 We include logistic regression as a baseline linear model because it gives a well-calibrated, directly interpretable probability estimate against which more complex models can be measured. The coefficients of logistic regression also provide an accessible interpretation in 'log odds per unit feature change' for validating signs and magnitudes.
 
-We define the logistic regression model as the weights $w \in \R ^d$ and bias $b \in \R$ such that for all $n$ training examples $x_i$ and labels $y_i \in {0,1}$
+We define the logistic regression model as the weights $w \in \mathbb R ^d$ and bias $b \in \mathbb R$ such that for all $n$ training examples $x_i$ and labels $y_i \in {0,1}$
 
 $$ 
 P(y_i = 1 \mid x_i) = \sigma(w^T x_i + b) \\
@@ -69,7 +135,7 @@ because $\sigma(0) = .5$. We therefore expect that logistic regression will unde
 ### Random Forest
 We include a random forest because our feature set mixes fundamentally different scales and structures and because we expect thresholded or interaction effects between them that a hyperplane decision boundary cannot represent. Unlike logistic regression, the random forest imposes no parametric assumption on the boundary shape at all
 
-Let $n$ be the number of training examples and $d$ be the number of features. For binary classification, we define a single decision tree $f \colon \R^d \to [0,1]$ as a recursive partition of $\R^d$ into disjoint regions $R_1,\dots,R_M$, each with a constant prediction $\hat p_m$. The random forest is an ensemble of $T$ such trees $\{f_i\}_{i=1}^T$ where each tree is fit to a bootstrap sample of size $n$ drawn with replacement from the training data. The ensemble prediction is then computed through soft voting on all output probabilities
+Let $n$ be the number of training examples and $d$ be the number of features. For binary classification, we define a single decision tree $f \colon \mathbb R^d \to [0,1]$ as a recursive partition of $\mathbb R^d$ into disjoint regions $R_1,\dots,R_M$, each with a constant prediction $\hat p_m$. The random forest is an ensemble of $T$ such trees $\{f_i\}_{i=1}^T$ where each tree is fit to a bootstrap sample of size $n$ drawn with replacement from the training data. The ensemble prediction is then computed through soft voting on all output probabilities
  
 $$\hat f(x) = \frac{1}{T}\sum_{i=1}^{T} f_i(x)$$
 
@@ -125,7 +191,7 @@ This means the forest can approximate any boundary shape given enough splits but
 ### Support Vector Machines
 We include a support vector machine as the maximum margin alternative to logistic regression. Rather than modeling $P(y_i=1 \mid x_i)$ directly, the SVM optimizes the geometric margin between the two classes, which statistical learning theory suggests should generalize well when the classes are close to separable and $n$ is not overwhelmingly large relative to $d$, unlike the random forest above which makes no such separability assumption at all.
  
-Let $y_i \in \{-1,+1\}$ rather than $\{0,1\}$, since the margin constraints below are more naturally stated with a sign. We define the SVM as the weights $w \in \R^d$, bias $b \in \R$, and slack variables $\xi_i \geq 0$ that together solve
+Let $y_i \in \{-1,+1\}$ rather than $\{0,1\}$, since the margin constraints below are more naturally stated with a sign. We define the SVM as the weights $w \in \mathbb R^d$, bias $b \in \mathbb R$, and slack variables $\xi_i \geq 0$ that together solve
  
 $$
 \min_{w,b,\xi} \ \frac{1}{2}\|w\|^2 + C\sum_{i=1}^{n}\xi_i \\ \\ 
@@ -185,7 +251,7 @@ Both the primal hinge-loss form and this dual are convex programs. The primal is
 #### Platt Scaling
 Because the SVM's raw score $f(x) = w^Tx+b$ is not a probability, we cannot use it directly wherever a calibrated $P(y=1\mid x)$ is required, for instance in downstream expected-value calculations. We instead fit a second, one dimensional model on top of the SVM's score to recover a probability.
  
-We define the Platt scaling model as scalar parameters $c \in \R$ and $d \in \R$ such that for the SVM score $f(x_i)$
+We define the Platt scaling model as scalar parameters $c \in \mathbb R$ and $d \in \mathbb R$ such that for the SVM score $f(x_i)$
  
 $$P(y_i = 1 \mid x_i) = \sigma\big(cf(x_i) + d\big)$$
  
@@ -218,7 +284,7 @@ Platt scaling only applies a monotonic reshaping to the SVM's score, so it canno
 ### Single Hidden Layer MLP
 We include a single hidden layer multilayer perceptron because, by the universal approximation theorem, an MLP with one sufficiently wide hidden layer and a nonlinear activation can approximate any continuous function on a compact domain to arbitrary accuracy. It therefore serves as a check on whether the linear and tree based models above are leaving nonlinear signal on the table.
  
-Let $x \in \R^d$ be the input, $h$ the hidden width, $W^{(1)} \in \R^{h \times d}$ and $b^{(1)} \in \R^h$ the hidden layer parameters, $W^{(2)} \in \R^{1 \times h}$ and $b^{(2)} \in \R$ the output layer parameters, and $\phi$ an elementwise nonlinear activation. We define the model's forward pass as
+Let $x \in \mathbb R^d$ be the input, $h$ the hidden width, $W^{(1)} \in \mathbb R^{h \times d}$ and $b^{(1)} \in \mathbb R^h$ the hidden layer parameters, $W^{(2)} \in \mathbb R^{1 \times h}$ and $b^{(2)} \in \mathbb R$ the output layer parameters, and $\phi$ an elementwise nonlinear activation. We define the model's forward pass as
  
 $$
 z^{(1)} = W^{(1)}x + b^{(1)}, \quad a^{(1)} = \phi(z^{(1)}), \quad z^{(2)} = W^{(2)}a^{(1)} + b^{(2)}, \quad \hat p = \sigma(z^{(2)})
