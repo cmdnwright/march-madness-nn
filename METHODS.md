@@ -93,7 +93,7 @@ $$L(w,b) = \prod_{i=1}^{n} \sigma(w^T x_i + b)^{y_i}(1-\sigma(w^T x_i + b))^{1-y
 
 Taking the negative log for a minimization target rather than maximum likelihood yields
 
-$$\mathcal{L}(w,b) = -\sum_{i=1}^{n} \left(y_ilog(\sigma(w^T x_i + b)) + (1-y_i)log(\sigma(w^T x_i + b))\right)$$
+$$\mathcal{L}(w,b) = -\sum_{i=1}^{n} \left(y_ilog(\sigma(w^T x_i + b)) + (1-y_i)log(1-\sigma(w^T x_i + b))\right)$$
 
 Which is exactly binary cross entropy loss.
 
@@ -106,7 +106,7 @@ Then the derivative of the per example loss $l_i$ with respect to $z_i$ is
 
 $$ \begin{aligned}
 l_i &= -y_ilog(\sigma(z_i)) - (1-y_i)log(\sigma(z_i)) \\ \\
-\frac{\partial l_i}{\partial z_i} &= -y_i\frac{1}{\sigma(z_i)}\sigma{z_i}(1-\sigma(z_i)) + (1-y_i)\frac{1}{1 - \sigma(z_i)}\sigma{z_i}(1-\sigma(z_i)) \\ \\
+\frac{\partial l_i}{\partial z_i} &= -y_i\frac{1}{\sigma(z_i)}\sigma(z_i)(1-\sigma(z_i)) + (1-y_i)\frac{1}{1 - \sigma(z_i)}\sigma(z_i)(1-\sigma(z_i)) \\ \\
 &= \sigma(z_i)(1-\sigma(z_i))\left(\frac{-y_i(1-\sigma({z_i})) + (1-y_i)\sigma(z_i)}{\sigma(z_i)(1-\sigma(z_i))}\right) \\ \\
 &= -y_i(1-\sigma({z_i})) + (1-y_i)\sigma(z_i) \\ \\
 &= \sigma(z_i) - y_i
@@ -118,12 +118,12 @@ $$ \begin{aligned}
 \mathcal{L}(w,b) &= \sum_{i=1}^{n} l_i(w,b) \\ \\
 \nabla_{w} \mathcal{L} &= \sum_{i=1}^{n} \frac{\partial l_i}{\partial z_i} \frac{\partial z_i}{\partial w} \\ \\
 &= \sum_{i=1}^{n} (\sigma(w^T x_i + b) - y_i)x_i \\ \\
-\frac{\partial \mathcal{L}}{\partial b} &= \sum_{i=1}^{n} \frac{\partial l_i}{\partial z_i} \frac{\partial z_i}{\partial w} \\ \\
+\frac{\partial \mathcal{L}}{\partial b} &= \sum_{i=1}^{n} \frac{\partial l_i}{\partial z_i} \frac{\partial z_i}{\partial b} \\ \\
 &= \sum_{i=1}^{n} (\sigma(w^T x_i + b) - y_i)
 \end{aligned}$$
 
 #### Solving
-Reviewing the BCE loss function, we note that $\mathcal{L}$ as a function of $(w,b)$ is the sum of compositions of the log of sigmoids with affine maps. Since the log of a sigmoid is a convex function, by convexity preserving operations composing with an affine map is also convex, and sums of convex maps are still convex. Therefore $\mathcal{L}$ is convex in $(w,b)$. Becuase $\mathcal{L}$, if a minimizer exists it is a global minimum. Since $\mathcal{L}$ is continuous and coercive, there must exist a unique global minimizer. Therefore, gradient decent will converge to the global minimum with the correct learning rate, but the convexity of $\mathcal{L}$ and existence of the hessian also allows us to use Newton's methods for quadratic convergence or more commonly quassi-Newton methods that approximate the hessian.
+Reviewing the BCE loss function, we note that $\mathcal{L}$ as a function of $(w,b)$ is the sum of compositions of the log of sigmoids with affine maps. Since the log of a sigmoid is a convex function, by convexity preserving operations composing with an affine map is also convex, and sums of convex maps are still convex. Therefore $\mathcal{L}$ is convex in $(w,b)$. Becuase $\mathcal{L}$ is convex, any finite local minimizer is global. Therefore, gradient descent will converge to the global minimum with the correct learning rate, but the convexity of $\mathcal{L}$ and existence of the hessian also allows us to use Newton's methods for quadratic convergence or more commonly quasi-Newton methods that approximate the hessian.
 
 #### Expected Performance
 The decision boundary for for a classification threshold of $0.5$ is the hyperplane
@@ -140,7 +140,7 @@ Let $n$ be the number of training examples and $d$ be the number of features. Fo
 $$\hat f(x) = \frac{1}{T}\sum_{i=1}^{T} f_i(x)$$
 
 #### Splitting
-The training features are all continuous values so to grow each individual tree we determine splits by evaluating the change in impurity of a possible split on feature $j$ at threshold $tao$ as a measure of the class homogeneity of the current set of the training data. For a node with sample set $S$ and unique classes $K$, we define the Gini impurity
+The training features are all continuous values so to grow each individual tree we determine splits by evaluating the change in impurity of a possible split on feature $j$ at threshold $\tau$ as a measure of the class homogeneity of the current set of the training data. For a node with sample set $S$ and unique classes $K$, we define the Gini impurity
  
 $$G(S) = 1 - \sum_{c \in K} \hat p_c^2 \qquad \hat p_c = \frac{1}{|S|}\sum_{i \in S} \mathbf{1}_{y_i = c}$$
  
@@ -152,7 +152,7 @@ where $p$ is the proportion of positive labels in the subset $S$. A candidate sp
 
 $$S_L = \{i \in S : x_{ij} \le \tau\} \qquad S_R = S \setminus S_L$$
 
-At each node, rather than considering all $d$ features, a random subset of features is sampled uniformly without replacement, and the best split is selected only from this subset. This additional randomization decorrelates the trees and reduces ensemble variance. The objective at each node is to choose $(j,\tau)$ maximizing the reduction in Gini impurity and producing the purest child nodes
+At each node, rather than considering all $d$ features, a random subset of features is sampled uniformly without replacement, and the best split is selected only from this subset. The additional randomization reduces the correlation between the trees and thus reduces ensemble variance. The objective at each node is to choose $(j,\tau)$ maximizing the reduction in Gini impurity and producing the purest child nodes
  
 $$\Delta G(j,\tau) = G(S) - \frac{|S_L|}{|S|}G(S_L) - \frac{|S_R|}{|S|}G(S_R)$$
  
@@ -217,7 +217,7 @@ exactly, since a smaller $\xi_i$ would violate the constraint $y_i(w^Tx_i+b)\geq
  
 $$\mathcal{L}(w,b) = \frac{1}{2}\|w\|^2 + C\sum_{i=1}^{n}\max\big(0,\ 1-y_i(w^Tx_i+b)\big)$$
  
-which is the hinge loss. The key qualitative difference from the binary cross entropy loss is that the hinge term is exactly zero once a point is classified correctly beyond the margin, so points the model already classifies confidently stop contributing to $\mathcal{L}$ altogether, whereas cross entropy continues to reward increasing confidence on orrectly classified points indefinitely.
+which is the hinge loss. The difference from binary cross entropy loss is that the hinge term is exactly zero once a point is classified correctly beyond the margin, so points the model already classifies confidently stop contributing to $\mathcal{L}$ altogether, while cross entropy continues to reward increasing confidence on correctly classified points indefinitely.
  
 #### Dual Derivation
 We derive the dual problem here rather than a gradient of $\mathcal{L}(w,b)$ directly, because it is the dual, not the primal, that exposes the support vectors and permits the kernel trick used to fit nonlinear boundaries. Introducing Lagrange multipliers $\lambda_i \geq 0$ for the margin constraints and $\mu_i \geq 0$ for $\xi_i \geq 0$, the Lagrangian of the original constrained problem is
@@ -227,8 +227,8 @@ $$L(w,b,\xi,\lambda,\mu) = \frac{1}{2}\|w\|^2 + C\sum_{i=1}^{n}\xi_i - \sum_{i=1
 The primal problem is convex since the norm is convex and all constraints are affine. We verify Slater's constraint by choosing the feasible point $w = 0, \ b=0, \ \xi_i = 2$ 
 
 $$ 
-0\geq -1 \\ \\ 
-2 \geq 0
+0 > -1 \\ \\ 
+2 > 0
 $$
 
 Therefore KKT is necessary and sufficient for the optimal point and strong duality holds. The saddle point of $L$ give the exact solution so setting the stationarity conditions $\nabla_w L = 0$, $\partial L / \partial b = 0$, and $\partial L/\partial \xi_i = 0$,
@@ -263,26 +263,26 @@ This is exactly the logistic regression problem above with $f(x_i)$ standing in 
  
 $$\mathcal{L}(c,d) = -\sum_{i=1}^{m}\left(t_ilog(\sigma(cf(x_i)+d)) + (1-t_i)log(1-\sigma(cf(x_i)+d))\right)$$
  
-with one modification: rather than regressing on the raw labels $y_i$ directly, we use a regularized target
+Rather than regressing on the raw labels $y_i$ directly, we regularize the target
  
 $$t_i = \frac{y_i^+ + 1}{y_i^+ + y_i^- + 2}$$
  
 where $y^+,y^-$ are the total counts of positive and negative examples in the calibration set. The application of Laplace's Rule of Succession keeps $c,d$ from being fit to overconfident $0/1$ targets on the typically a small calibration set.
  
 #### Gradient Derivation
-Since $\mathcal{L}(c,d)$ has the identical cross entropy form as logistic regression, the gradient derivation carries over term for term and gives
+Since $\mathcal{L}(c,d)$ has the same cross entropy form as logistic regression, the gradient derivation are the same
  
 $$\frac{\partial \mathcal{L}}{\partial c} = \sum_{i=1}^{m}\big(\sigma(cf(x_i)+d) - t_i\big)f(x_i), \qquad \frac{\partial \mathcal{L}}{\partial d} = \sum_{i=1}^{m}\big(\sigma(cf(x_i)+d) - t_i\big)$$
  
-and by the same convexity argument as logistic regression, $\mathcal{L}(c,d)$ is convex in $(c,d)$, so a global minimizer exists and is found cheaply since $(c,d)$ is only two scalars.
+and a global minimizer exists and is found with low computational overhead since $(c,d)$ is only two scalars.
  
 #### Expected Performance
-With a linear kernel we expect performance close to logistic regression, but with potentially better generalization on a small or noisy training set, since the margin objective specifically stops penalizing points once they are well classified, whereas cross entropy keeps rewarding increasing confidence on the same points indefinitely. With an RBF kernel we expect the SVM to compete with the random forest above on nonlinear structure, at the cost of $O(n^2)$ to $O(n^3)$ scaling in the Gram matrix and an additional hyperparameter search over $C$ and the kernel bandwidth.
+With a linear kernel we expect performance close to logistic regression, but with potentially better generalization on a small or noisy training set, since the margin objective specifically stops penalizing points once they are well classified, while cross entropy keeps rewarding increasing confidence on the same points indefinitely. With an RBF kernel we expect the SVM to compete with the random forest above on nonlinear structure, at the cost of $O(n^2)$ to $O(n^3)$ scaling in the Gram matrix and an additional hyperparameter search over $C$ and the kernel bandwidth.
 
-Platt scaling only applies a monotonic reshaping to the SVM's score, so it cannot change the SVM's ranking of examples and therefore cannot change its ROC or AUC, only the mapping from score to probability. We expect it to matter when calibrated probabilities are consumed downstream, and to matter most when the SVM's margin scores are visibly non sigmoidal in shape, which is exactly the case when classes are close to separable and scores run to extremes.
+Platt scaling only applies a monotonic reshaping to the SVM's score, so it cannot change the SVM's ranking of examples and therefore cannot change its ROC or AUC, only the mapping from score to probability. We expect it to matter when calibrated probabilities are consumed downstream, and to matter most when the SVM's margin scores are visibly not sigmoidal in shape, which is exactly the case when classes are close to separable and scores run to extremes.
 
 ### Single Hidden Layer MLP
-We include a single hidden layer multilayer perceptron because, by the universal approximation theorem, an MLP with one sufficiently wide hidden layer and a nonlinear activation can approximate any continuous function on a compact domain to arbitrary accuracy. It therefore serves as a check on whether the linear and tree based models above are leaving nonlinear signal on the table.
+We include a single hidden layer multilayer perceptron because, by the universal approximation theorem, an MLP with one sufficiently wide hidden layer and a nonlinear activation can approximate any continuous function on a compact domain to arbitrary accuracy. The nonlinear fomulation allows the MLP to leverage nonlinear signals the other models cannot distinguish
  
 Let $x \in \mathbb R^d$ be the input, $h$ the hidden width, $W^{(1)} \in \mathbb R^{h \times d}$ and $b^{(1)} \in \mathbb R^h$ the hidden layer parameters, $W^{(2)} \in \mathbb R^{1 \times h}$ and $b^{(2)} \in \mathbb R$ the output layer parameters, and $\phi$ an elementwise nonlinear activation. We define the model's forward pass as
  
@@ -293,14 +293,14 @@ $$
 Without the activation function $\phi$, the composition of two affine maps $z^{(2)} = W^{(2)}(W^{(1)}x+b^{(1)})+b^{(2)}$ is itself affine in $x$, so the model would collapse back to logistic regression regardless of how large $h$ is.
  
 #### Loss
-We again take $y_i \in \{0,1\}$ and model $Y_i$ as Bernoulli with probability $\hat p_i$, so by the identical MLE argument used for logistic regression,
+We take $y_i \in \{0,1\}$ and model $Y_i$ as Bernoulli with probability $\hat p_i$. By the MLE argument
  
 $$\mathcal{L}\big(W^{(1)},b^{(1)},W^{(2)},b^{(2)}\big) = -\sum_{i=1}^{n}\left(y_ilog(\hat p_i) + (1-y_i)log(1-\hat p_i)\right)$$
  
-which is again exactly binary cross entropy, now composed with the two layer forward pass above rather than a single affine map.
+is exactly binary cross entropy loss, now composed with the two layer forward pass above rather than a single affine map.
  
 #### Gradient Derivation
-Let $\delta_i^{(2)} = \partial l_i / \partial z_i^{(2)}$. The output layer of the MLP is structurally identical to logistic regression applied to $a_i^{(1)}$ in place of $x_i$, so the same derivative computed above applies directly without rederivation,
+Let $\delta_i^{(2)} = \partial l_i / \partial z_i^{(2)}$. The output layer of the MLP is structurally identical to logistic regression applied to $a_i^{(1)}$ in place of $x_i$, so it has the same derivative
  
 $$\delta_i^{(2)} = \hat p_i - y_i$$
  
@@ -308,7 +308,7 @@ Backpropagating this error through the output weights by the chain rule,
  
 $$\frac{\partial l_i}{\partial W^{(2)}} = \delta_i^{(2)}\big(a_i^{(1)}\big)^T, \qquad \frac{\partial l_i}{\partial b^{(2)}} = \delta_i^{(2)}$$
  
-To propagate the error back to the hidden layer we apply the chain rule once more, through $z_i^{(2)} = W^{(2)}a_i^{(1)}+b^{(2)}$ and then $a_i^{(1)} = \phi(z_i^{(1)})$,
+To propagate the error back to the hidden layer we apply the chain rule again, through $z_i^{(2)} = W^{(2)}a_i^{(1)}+b^{(2)}$ and then $a_i^{(1)} = \phi(z_i^{(1)})$,
  
 $$ \begin{aligned}
 \delta_i^{(1)} &= \frac{\partial l_i}{\partial z_i^{(1)}} \\ \\
@@ -320,16 +320,16 @@ where $\odot$ denotes the elementwise Hadamard product, since $a_i^{(1)}=\phi(z_
  
 $$\frac{\partial l_i}{\partial W^{(1)}} = \delta_i^{(1)}x_i^T, \qquad \frac{\partial l_i}{\partial b^{(1)}} = \delta_i^{(1)}$$
  
-Computing these four gradients in this order, output layer first and hidden layer second, rather than differentiating $\mathcal{L}$ with respect to $W^{(1)}$ directly, is precisely the backpropagation algorithm, and is what a gradient based optimizer such as Adam requires at each step.
+Computing these four gradients in this order, output layer first and hidden layer second, rather than differentiating $\mathcal{L}$ with respect to $W^{(1)}$ directly, is the backpropagation algorithm, and is what a gradient based optimizer like Adam requires at each step.
  
 #### Solving
-Unlike $\mathcal{L}(w,b)$ for logistic regression, $\mathcal{L}$ here is a function of $W^{(1)},b^{(1)},W^{(2)},b^{(2)}$ jointly, and $z_i^{(2)} = W^{(2)}\phi(W^{(1)}x_i+b^{(1)})+b^{(2)}$ contains a product of $W^{(2)}$ with a nonlinear function of $W^{(1)}$. This product structure breaks the convexity preserving composition argument used for logistic regression, since a product of two non-constant functions of the same variables is not in general convex, so $\mathcal{L}$ is non-convex in the full parameter set here. Gradient descent is therefore only guaranteed to converge to a stationary point rather than a global minimum, and which stationary point is reached depends on the random initialization of $W^{(1)},W^{(2)}$. In practice we address this with multiple random restarts and with regularization, such as weight decay, dropout, or early stopping, to reduce sensitivity to the particular local minimum reached rather than attempting to certify global optimality the way we could for logistic regression or the SVM.
+Unlike $\mathcal{L}(w,b)$ for logistic regression, $\mathcal{L}$ here is a function of $W^{(1)},b^{(1)},W^{(2)},b^{(2)}$ jointly, and $z_i^{(2)} = W^{(2)}\phi(W^{(1)}x_i+b^{(1)})+b^{(2)}$ contains a product of $W^{(2)}$ with a nonlinear function of $W^{(1)}$. This product structure breaks the convexity preserving composition argument since a product of two non-constant functions of the same variables is not in necessarily convex. Gradient descent is therefore only guaranteed to converge to a stationary point rather than a global minimum, and which stationary point is reached depends on the random initialization of $W^{(1)},W^{(2)}$. In practice we address this with multiple random restarts and regularization such as weight decay, dropout, or early stopping. This reduces sensitivity to the particular local minimum reached rather than attempting to certify global optimality.
  
 #### Expected Performance
-Because $\phi$ is applied continuously rather than through the indicator function splits of the random forest above or the fixed kernel form of the SVM, we expect the MLP to represent smooth decision boundaries more efficiently than either, and to match or exceed both whenever the true boundary is smooth rather than piecewise axis-aligned. Given the comparatively small size of a single sports season dataset relative to typical deep learning training sets, the model's flexibility is also its chief risk: with a wide hidden layer and without adequate regularization we would expect it to overfit and underperform the random forest despite having greater representational capacity, which is the same bias-variance trade-off invoked to justify feature subsampling in the random forest, just working against us here instead of for us.
+Because $\phi$ is applied continuously rather than through the indicator function splits of the random forest above or the fixed kernel form of the SVM, we expect the MLP to represent smooth decision boundaries more efficiently than either, and to match or exceed both whenever the true boundary is smooth rather than piecewise axis-aligned. Given the comparatively small size of a single sports season dataset relative to typical deep learning training sets, the model's flexibility is also risks overfitting if the model is too complex for the data.
  
 #### Focal Loss
-Sports outcome data is frequently imbalanced in a soft sense, since heavy favorites win the large majority of their games, so under plain cross entropy the large mass of easy, confidently and correctly classified examples dominates the sum in $\mathcal{L}$ and contributes comparatively little useful gradient, while the harder, closer games that we most want the model to get right contribute a proportionally smaller share. Focal loss modifies the MLP's output loss to reweight the sum toward these harder examples.
+Sports outcome data is frequently imbalanced since heavy favorites win the large majority of games. Under plain cross entropy the large mass of easy, confidently and correctly classified examples dominates the sum in $\mathcal{L}$ and contributes comparatively little useful gradient, while the harder, closer games that we want the model to predict correctly contribute a proportionally smaller share. Focal loss modifies the MLP's output loss to reweight the sum toward the harder examples.
  
 Let $p_{t,i}$ denote the predicted probability assigned to the true class of example $i$,
  
@@ -352,7 +352,7 @@ $$ \begin{aligned}
 &= \alpha\left[\gamma(1-\hat p_i)^{\gamma-1}log(\hat p_i) - \frac{(1-\hat p_i)^\gamma}{\hat p_i}\right]
 \end{aligned}$$
  
-Applying the chain rule through $\partial \hat p_i/\partial z_i = \hat p_i(1-\hat p_i)$, exactly as in the BCE case
+Applying the chain rule through $\frac{\partial \hat p_i}{\partial z_i} = \hat p_i(1-\hat p_i)$, exactly as in the BCE case
  
 $$ \begin{aligned}
 \frac{\partial l_i}{\partial z_i} &= \frac{\partial l_i}{\partial \hat p_i}\cdot\hat p_i(1-\hat p_i) \\ \\
@@ -360,10 +360,10 @@ $$ \begin{aligned}
 &= \alpha(1-\hat p_i)^{\gamma}\Big[\gamma \hat p_i \ log(\hat p_i) - (1-\hat p_i)\Big]
 \end{aligned}$$
  
-Comparing this to the plain cross entropy gradient derived for logistic regression, $\partial l_i/\partial z_i = \hat p_i - y_i = -(1-\hat p_i)$ for $y_i=1$, the focal loss gradient is this same $-(1-\hat p_i)$ term scaled by $(1-\hat p_i)^\gamma$, plus an additional $\gamma\hat p_i \ log(\hat p_i)$ correction term that also vanishes as $\hat p_i \to 1$. This confirms algebraically, rather than only by appeal to the shape of $(1-p_{t,i})^\gamma$, that the gradient contributed by a well classified example shrinks polynomially in $(1-\hat p_i)$ at rate $\gamma$, whereas the plain cross entropy gradient shrinks only linearly.
+Comparing this to the plain cross entropy gradient derived for logistic regression, $\frac{\partial l_i}{\partial z_i} = \hat p_i - y_i = -(1-\hat p_i)$ for $y_i=1$, the focal loss gradient is this same $-(1-\hat p_i)$ term scaled by $(1-\hat p_i)^\gamma$, plus an additional $\gamma\hat p_i \ log(\hat p_i)$ correction term that also vanishes as $\hat p_i \to 1$. This confirms algebraically that the gradient contributed by a well classified example decreases with a polynomial in $(1-\hat p_i)$ at rate $\gamma$, while the plain cross entropy gradient decreases linearly.
  
 #### Solving
-Substituting this $\partial l_i/\partial z_i$ in place of $\delta_i^{(2)} = \hat p_i - y_i$ in the MLP's gradient derivation above leaves the rest of backpropagation unchanged, since $\delta_i^{(1)}$ was only ever computed from $\delta_i^{(2)}$ as an opaque quantity. The joint objective therefore inherits the same non-convexity in $(W^{(1)},b^{(1)},W^{(2)},b^{(2)})$ discussed above, plus two additional hyperparameters $\gamma,\alpha$ that have to be selected by cross validation rather than fit by gradient descent.
+Substituting $\frac{\partial l_i}{\partial z_i}$ in place of $\delta_i^{(2)} = \hat p_i - y_i$ in the MLP's gradient derivation leaves the rest of backpropagation unchanged, since $\delta_i^{(1)}$ was only ever computed from $\delta_i^{(2)}$. The joint objective therefore inherits the same non convexity in $(W^{(1)},b^{(1)},W^{(2)},b^{(2)})$ discussed above, plus two additional hyperparameters $\gamma,\alpha$ that have to be selected by cross validation rather than fit by gradient descent.
  
 #### Expected Performance
 Because focal loss is no longer the exact negative log likelihood that justified using cross entropy by MLE in the first place, we lose the probabilistic interpretation that motivated the loss for logistic regression and the plain MLP above. We would want to evaluate calibration explicitly, for instance with a reliability diagram or Brier score, rather than assume it holds. In exchange, we expect training the MLP with focal loss in place of plain cross entropy to improve performance specifically on the harder, closer games in our dataset, at the cost of an additional $(\alpha,\gamma)$ hyperparameter search.
@@ -628,7 +628,7 @@ which recovers the statistic above without ever needing to know $\sigma_d$. The 
 The validity of $t$ here rests on the $d_i$ being approximately normal, which is a stronger assumption than McNemar's test requires and one that is more plausible for a bounded, averaged metric like Brier score than for log loss, which we noted above can be dominated by a small number of extreme misses and is therefore prone to heavy tailed or skewed differences. Where that assumption is doubtful we instead use the Wilcoxon signed rank test below on the same $d_i$.
  
 ### Wilcoxon Signed Rank Test
-We include the Wilcoxon signed rank test as a non-parametric alternative to the paired t-test where the per season average differences $d_i$ are not plausibly normal, while still using more information than a simple sign test that only asks which model won on each season.
+We include the Wilcoxon signed rank test as a non-parametric alternative to the paired t-test where the per season average differences $d_i$ cannot be assumed to be normal, while still using more information than the simple sign test that only considers which model won on each season.
  
 Given the same paired differences $d_i$, discard any $d_i=0$, leaving $m$ nonzero differences. Rank $|d_i|$ from $1$ to $m$, and let $R_i$ denote the rank assigned to $|d_i|$. Define
  
@@ -652,16 +652,16 @@ $$Z = \frac{W^+ - \tfrac{m(m+1)}{4}}{\sqrt{m(m+1)(2m+1)/24}} \;\xrightarrow{d}\;
 which we compare against the standard normal rather than the exact, tabulated distribution of $W$.
  
 #### Interpretation
-Because the test uses only the ranks of $|d_i|$ rather than their actual magnitudes, it is more robust to a few extreme differences than the paired t-test, at the cost of discarding some information the t-test would use and therefore somewhat less powerful when the normality assumption genuinely does hold. We use it as a check on the paired t-test result on the same metric: broad agreement between the two increases our confidence that a detected difference is not an artifact of non-normal $d_i$, while a disagreement is itself a sign that the t-test's normality assumption is doing meaningful, and potentially misleading, work.
+Because the test uses only the ranks of $|d_i|$ rather than the actual magnitudes, it is more robust to a few extreme differences than a paired t-test, at the cost of discarding some information the t-test would use. As a result, the Wilcoxon signed rank test loses some power when the assumption of normality does hold. Broad agreement between the t-test and the signed rank test increases the confidence that a detected difference is not an artifact of non-normal $d_i$, while a disagreement is a sign that the t-test's normality assumption is doing significant work, whether or not it is misleading. Since our specific metric of season bracket scores are rarely normal and our sample size is less that $n=30$, we expect the Wilcoxon signed rank test to provide the more accurate statistical results.
  
 ### Holm-Bonferroni Correction
-We include the Holm-Bonferroni correction because comparing four models pairwise, or comparing several metrics between the same two models, means running multiple hypothesis tests rather than one, and each individual test above controls its own Type I error rate $\alpha$ only in isolation.
+We include the Holm-Bonferroni correction because comparing four models pairwise, or comparing several metrics between the same two models, means running multiple hypothesis tests rather than one, and each individual test controls its own Type I error rate $\alpha$ only in isolation, increasing the risk of false rejections.
  
-Running $m$ independent tests each at level $\alpha$, the probability of at least one false rejection across the family is
+Running $m$ independent tests each at level $\alpha$, the probability of at least one false rejection across the family is the compliment of all true rejections or
  
 $$P(\text{at least one false positive}) = 1-(1-\alpha)^m$$
  
-which grows toward $1$ as $m$ increases even though each individual test is well calibrated, so with $6$ pairwise model comparisons a nominal $\alpha=0.05$ per test can correspond to a substantially higher family-wise error rate. The classical Bonferroni correction controls this by testing each hypothesis at level $\alpha/m$, which is simple but conservative because it applies the same threshold to every test regardless of the other $p$-values observed. The Holm-Bonferroni procedure controls the same family-wise error rate with a step-down threshold.
+which grows toward $1$ as $m$ increases even though each individual test is well calibrated, so with $6$ pairwise model comparisons an $\alpha=0.05$ per test can correspond to a substantially higher family wise error rate. The classical Bonferroni correction controls this by testing each hypothesis at level $\alpha/m$, which is simple but conservative because it applies the same threshold to every test regardless of the other $p$-values observed. The Holm-Bonferroni method controls the same family wise error rate using a step-down threshold.
  
 #### Procedure
 Given $m$ hypotheses with $p$-values sorted ascending $p_{(1)} \leq p_{(2)} \leq \dots \leq p_{(m)}$, find the smallest index $k$ such that
@@ -671,11 +671,11 @@ $$p_{(k)} > \frac{\alpha}{m-k+1}$$
 reject hypotheses $H_{(1)},\dots,H_{(k-1)}$ and fail to reject $H_{(k)},\dots,H_{(m)}$. If no such $k$ exists, reject all $m$.
 
 #### Derivation
-We show the family-wise error rate under this procedure is at most $\alpha$. Let $I_0$ be the set of hypotheses that are truly null, with $|I_0|=m_0\leq m$. A false rejection occurs only if some $p$-value in $I_0$ is rejected, which under the step-down rule requires $p_{(j)}\leq \alpha/(m-j+1)$ for the rank $j$ at which that null hypothesis is examined. Since at most $m-m_0$ of the smaller ranks can be occupied by non-null hypotheses, any true null is examined at a rank $j$ no smaller than $m-m_0+1$, so it is rejected only if its $p$-value is at most $\alpha/(m-j+1) \leq \alpha/m_0$. Applying Bonferroni's inequality (a union bound) to just the $m_0$ true nulls at this common threshold,
+We show the family wise error rate under this procedure is at most $\alpha$. Let $I_0$ be the set of hypotheses that are truly null, with $|I_0|=m_0\leq m$. A false rejection occurs only if some $p$-value in $I_0$ is rejected. Under the step-down rule, this requires $p_{(j)}\leq \alpha/(m-j+1)$ for the rank $j$ at which that null hypothesis is examined. Since at most $m-m_0$ of the smaller ranks can be occupied by non-null hypotheses, any true null is examined at a rank $j$ no smaller than $m-m_0+1$, so it is rejected only if its $p$-value is at most $\alpha/(m-j+1) \leq \alpha/m_0$. Applying Bonferroni's inequality (a union bound) to just the $m_0$ true nulls at this common threshold,
  
 $$P(\text{any true null has } p\text{-value} \leq \alpha/m_0) \leq \sum_{i\in I_0} P(p_i \leq \alpha/m_0) = m_0\cdot\frac{\alpha}{m_0} = \alpha$$
  
-so the family-wise error rate is bounded by $\alpha$ regardless of how many of the $m$ hypotheses are actually non-null, and regardless of any dependence between the tests, since the union bound step requires no independence assumption. Because Holm-Bonferroni only requires $p_{(k)}$ to clear a threshold that grows as $k$ increases (correcting by $m-k+1$ rather than the fixed $m$ used by classical Bonferroni), every hypothesis that Bonferroni would reject is also rejected by Holm-Bonferroni, making it uniformly more powerful for the same guaranteed error control.
+so the family wise error rate is bounded by $\alpha$ regardless of how many of the $m$ hypotheses are actually non-null, and regardless of any dependence between the tests because the bound step requires no assumption of independence. Because Holm-Bonferroni only requires $p_{(k)}$ to clear a threshold that grows as $k$ increases and corrects by $m-k+1$ rather than the fixed $m$ used by classical Bonferroni, every hypothesis that Bonferroni would reject is also rejected by Holm-Bonferroni, giving it uniformly more statistical power for the same guaranteed error control.
  
 #### Interpretation
-We apply this correction across the full family of pairwise model comparisons and metric comparisons run in a single round of evaluation, rather than to each test in isolation, since it is the act of running many tests and reporting whichever come back significant that inflates the family-wise error rate. A comparison that is significant before correction but not after should be read as a difference we cannot distinguish from noise once we account for how many comparisons were run to find it, not as a failed or discarded result.
+Running many tests and reporting whichever come back significant risks inflating the overall false rejection rate, so we apply the Holm-Bonferroni correction to the entire set of pairwise model comparisons and metric comparisons run in a single round of evaluation. A comparison that is significant before correction but not after should be read as a difference we cannot distinguish from noise once we account for how many comparisons were run to find it, not as a failed or discarded result.
